@@ -1,6 +1,9 @@
 import midi
 import dpcm
+import waveform
 
+# python stdlib
+import wave
 
 def _tuning_error(a):
     return a["error"]
@@ -40,19 +43,44 @@ def smallest_acceptable(ideal_tunings, threshold):
     acceptable_tunings.sort(key=_tuning_length)
     return acceptable_tunings[0]
 
+def generate_pcm(tuning, generator, playback_rate):
+    pcm = []
+    for i in range(0, tuning["samples"]):
+        sample = waveform.sample(generator, i, tuning["effective_frequency"], playback_rate)
+        sample_8bit = int(min(255, max(0, sample * 256)))
+        pcm.append(sample_8bit)
+    return pcm
+
+def write_waveform(filename, pcm_data, playback_rate):
+    writer = wave.open(filename, mode="wb")
+    writer.setnchannels(1)
+    writer.setsampwidth(1)
+    writer.setframerate(int(playback_rate))
+    writer.writeframes(bytes(pcm_data))
+    writer.close()
+
 # DEBUG
-playback_rate = 33143.9
+playback_rate = 33144
 error_threshold = 0.01
 tuning_table = generate_tuning_table(playback_rate, 255)
-for i in range(midi.note_index("c4"), midi.note_index("c5")):
+for i in range(midi.note_index("c0"), midi.note_index("c5")):
     tuning = smallest_acceptable(tuning_table[i], error_threshold)
-    print("Phase: {:.2f}, Error: {:.2f}, Bytes: {}, Repetitions: {}, E. Freq: {:.2f}".format(
-        tuning["phase_offset"],
-        tuning["error"],
-        tuning["size"],
-        tuning["repetitions"],
-        tuning["effective_frequency"]
-        ))
+    pcm = generate_pcm(tuning, waveform.triangle, playback_rate)
+    makedirs("samples/triangle",exist_ok=True)
+    filename = "samples/triangle/{:03d}-{}-triangle.wav".format(i, midi.note_name(i))
+    print(filename)
+    write_waveform(filename, pcm, playback_rate)
+
+
+
+    #print("{}: Phase: {:.2f}, Error: {:.2f}, Bytes: {}, Repetitions: {}, E. Freq: {:.2f}".format(
+    #    midi.note_name(i),
+    #    tuning["phase_offset"],
+    #    tuning["error"],
+    #    tuning["size"],
+    #    tuning["repetitions"],
+    #    tuning["effective_frequency"]
+    #    ))
 
 
 
