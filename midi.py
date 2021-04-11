@@ -115,3 +115,8 @@ def note_index(note_name):
     octave_number = int(octave_str)
     return _note_index(letter_name, octave_number, modifier)
 
+def note_name(midi_index):
+    letter_indices = ['C', 'Cs', 'D', 'Ds', 'E', 'F', 'Fs', 'G', 'Gs', 'A', 'As', 'B']
+    letter = letter_indices[midi_index % 12]
+    octave = str(int(midi_index / 12))
+    return letter + octave
