@@ -1,6 +1,10 @@
 # VERY restricted .fti writer, specifically for DPCM instrument files with almost
 # no other supported variations
 
+import dpcm
+import midi
+
+# python stdlib
 import struct
 
 INST_HEADER = "FTI"
@@ -48,11 +52,11 @@ def midi_to_note_index(midi_index):
   assert(note_index > 0 and note_index < 127)
   return note_index
 
-def write_sample_data(file, name, bytes):
+def write_sample_data(file, name, raw_data):
   write_int(file, len(name))
   write_string(file, name)
-  write_int(file, len(bytes))
-  file.write(bytes)
+  write_int(file, len(raw_data))
+  file.write(bytes(raw_data))
 
 def write_dpcm_instrument(file, instrument_name, note_mappings, samples):
   write_instrument_header(file, instrument_name)
@@ -64,7 +68,13 @@ def write_dpcm_instrument(file, instrument_name, note_mappings, samples):
   for sample_index in range(0, len(samples)):
     sample = samples[sample_index]
     write_int(file, sample_index)
-    write_sample_data(file, instrument_name + "-" + sample["name"], sample["data"])
+    write_sample_data(file, sample["name"], sample["data"])
+
+def note_by_index(note_mappings, index):
+  for note_mapping in note_mappings:
+    if note_mapping["midi_index"] == index:
+      return note_mapping
+  return None
 
 def fill_lower_samples(note_mappings):
   for midi_index in range(127, 12, -1):
@@ -72,14 +82,13 @@ def fill_lower_samples(note_mappings):
     if note_mapping:
       target_midi_index = midi_index
       for dpcm_pitch in range(note_mapping["pitch"], 0x0, -1):
-        target_midi_index = target_midi_index - dpcm_equivalency[dpcm_pitch - 1]
+        target_midi_index = target_midi_index - dpcm.equivalency[dpcm_pitch - 1]
         if target_midi_index > 12:
           # check to see if this note mapping already exists
           target_note_mapping = note_by_index(note_mappings, target_midi_index)
           if target_note_mapping == None:
             # create a new note mapping, with the lower pitch
-            print("Will map ", midi.notes[midi_index]["name"], " with dpcm rate ", note_mapping["pitch"], " to lower note ", midi.notes[target_midi_index]["name"], " with dpcm rate ", dpcm_pitch - 1)
+            print("Will map ", midi.note_name(midi_index), " with dpcm rate ", note_mapping["pitch"], " to lower note ", midi.note_name(target_midi_index), " with dpcm rate ", dpcm_pitch - 1)
             target_note_mapping = {"midi_index": target_midi_index, "sample_index": note_mapping["sample_index"], "pitch": dpcm_pitch - 1, "looping": note_mapping["looping"]}
             note_mappings.append(target_note_mapping)
   return note_mappings
-  

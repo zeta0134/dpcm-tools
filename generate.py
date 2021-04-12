@@ -1,5 +1,6 @@
-import midi
 import dpcm
+import fti
+import midi
 import waveform
 
 # python stdlib
@@ -67,31 +68,40 @@ def write_dmc(filename, pcm_data):
     output.write(dmc_data)
     output.close()
 
+
+def generate_mapping(sample_table, target_note_name, source_sample_name, source_dpcm_pitch):
+    
+    mapping = {"midi_index": target_midi_index, "sample_index": sample_index, "pitch": source_dpcm_pitch, "looping": True}
+    return mapping
+
+
 # DEBUG
 playback_rate = 33144
 error_threshold = 0.01
+sample_table = []
+note_mappings = []
 tuning_table = generate_tuning_table(playback_rate, 255)
-for i in range(midi.note_index("c0"), midi.note_index("c5")):
+sample_index = 1
+for i in range(midi.note_index("gs3"), midi.note_index("c4") + 1):
     tuning = smallest_acceptable(tuning_table[i], error_threshold)
-    pcm = generate_pcm(tuning, waveform.triangle, playback_rate)
-    os.makedirs("samples/triangle",exist_ok=True)
-    wave_filename = "samples/triangle/{:03d}-{}-triangle.wav".format(i, midi.note_name(i))
-    print(wave_filename)
-    write_waveform(wave_filename, pcm, playback_rate)
-    dpcm_filename = "samples/triangle/{:03d}-{}-triangle.dmc".format(i, midi.note_name(i))
-    print(dpcm_filename)
-    write_dmc(dpcm_filename, pcm)
+    pcm = generate_pcm(tuning, waveform.sawtooth, playback_rate)
+    dpcm_data = dpcm.to_dpcm(pcm)
+    sample_name = "saw-{}".format(midi.note_name(i))
+    sample_table.append({"name": sample_name, "data": dpcm_data})
+    note_mappings.append({"midi_index": i, "sample_index": sample_index, "pitch": 0xF, "looping": True})
+    sample_index += 1
 
+    print("{}: Phase: {:.2f}, Error: {:.2f}, Bytes: {}, Repetitions: {}, E. Freq: {:.2f}".format(
+        midi.note_name(i),
+        tuning["phase_offset"],
+        tuning["error"],
+        tuning["size"],
+        tuning["repetitions"],
+        tuning["effective_frequency"]
+        ))
 
-    #print("{}: Phase: {:.2f}, Error: {:.2f}, Bytes: {}, Repetitions: {}, E. Freq: {:.2f}".format(
-    #    midi.note_name(i),
-    #    tuning["phase_offset"],
-    #    tuning["error"],
-    #    tuning["size"],
-    #    tuning["repetitions"],
-    #    tuning["effective_frequency"]
-    #    ))
+note_mappings = fti.fill_lower_samples(note_mappings)
 
-
-
-
+output = io.open("dpcm-saw.fti", "wb")
+fti.write_dpcm_instrument(output, "DPCM saw", note_mappings, sample_table)
+output.close()
