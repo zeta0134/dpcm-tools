@@ -3,6 +3,8 @@ import dpcm
 import waveform
 
 # python stdlib
+import io
+import os
 import wave
 
 def _tuning_error(a):
@@ -59,6 +61,12 @@ def write_waveform(filename, pcm_data, playback_rate):
     writer.writeframes(bytes(pcm_data))
     writer.close()
 
+def write_dmc(filename, pcm_data):
+    dmc_data = dpcm.to_dpcm(pcm_data)
+    output = io.open(filename, "wb")
+    output.write(dmc_data)
+    output.close()
+
 # DEBUG
 playback_rate = 33144
 error_threshold = 0.01
@@ -66,11 +74,13 @@ tuning_table = generate_tuning_table(playback_rate, 255)
 for i in range(midi.note_index("c0"), midi.note_index("c5")):
     tuning = smallest_acceptable(tuning_table[i], error_threshold)
     pcm = generate_pcm(tuning, waveform.triangle, playback_rate)
-    makedirs("samples/triangle",exist_ok=True)
-    filename = "samples/triangle/{:03d}-{}-triangle.wav".format(i, midi.note_name(i))
-    print(filename)
-    write_waveform(filename, pcm, playback_rate)
-
+    os.makedirs("samples/triangle",exist_ok=True)
+    wave_filename = "samples/triangle/{:03d}-{}-triangle.wav".format(i, midi.note_name(i))
+    print(wave_filename)
+    write_waveform(wave_filename, pcm, playback_rate)
+    dpcm_filename = "samples/triangle/{:03d}-{}-triangle.dmc".format(i, midi.note_name(i))
+    print(dpcm_filename)
+    write_dmc(dpcm_filename, pcm)
 
 
     #print("{}: Phase: {:.2f}, Error: {:.2f}, Bytes: {}, Repetitions: {}, E. Freq: {:.2f}".format(
