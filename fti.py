@@ -63,7 +63,7 @@ def write_dpcm_instrument(file, instrument_name, note_mappings, samples):
   write_empty_sequence_data(file)
   write_int(file, len(note_mappings))
   for note_mapping in note_mappings:
-    write_sample_attributes(file, midi_to_note_index(note_mapping["midi_index"]), note_mapping["sample_index"], note_mapping["pitch"], note_mapping["looping"])
+    write_sample_attributes(file, midi_to_note_index(note_mapping["midi_index"]), note_mapping["sample_index"], note_mapping["pitch"], note_mapping["looping"], note_mapping["delta"])
   write_int(file, len(samples))
   for sample_index in range(0, len(samples)):
     sample = samples[sample_index]
@@ -77,7 +77,7 @@ def note_by_index(note_mappings, index):
   return None
 
 def fill_lower_samples(note_mappings):
-  for midi_index in range(127, 12, -1):
+  for midi_index in range(12, 127, 1):
     note_mapping = note_by_index(note_mappings, midi_index)
     if note_mapping:
       target_midi_index = midi_index
@@ -89,6 +89,6 @@ def fill_lower_samples(note_mappings):
           if target_note_mapping == None:
             # create a new note mapping, with the lower pitch
             print("Will map ", midi.note_name(midi_index), " with dpcm rate ", note_mapping["pitch"], " to lower note ", midi.note_name(target_midi_index), " with dpcm rate ", dpcm_pitch - 1)
-            target_note_mapping = {"midi_index": target_midi_index, "sample_index": note_mapping["sample_index"], "pitch": dpcm_pitch - 1, "looping": note_mapping["looping"]}
+            target_note_mapping = {"midi_index": target_midi_index, "sample_index": note_mapping["sample_index"], "pitch": dpcm_pitch - 1, "looping": note_mapping["looping"], "delta": note_mapping["delta"]}
             note_mappings.append(target_note_mapping)
   return note_mappings
