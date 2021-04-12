@@ -34,8 +34,9 @@ def safe_amplitude(target_frequency, playback_rate):
     return min(1.0, safer_theoretical_amplitude)
 
 def dpcm_level(pcm_sample):
-  clamped_dpcm_level = int(max(0, min(127, pcm_sample / 2.0)))
-  return clamped_dpcm_level
+  #clamped_dpcm_level = int(max(0, min(127, pcm_sample / 2.0)))
+  #return clamped_dpcm_level
+  return pcm_sample / 2.0
 
 def pack_dpcm_bits_into_bytes(bit_array):
   while len(bit_array) % 8 != 0:
@@ -49,6 +50,14 @@ def pack_dpcm_bits_into_bytes(bit_array):
     byte_array.append(byte_value)
   return bytes(byte_array)
 
+def unpack_bytes_into_bits(byte_array):
+  bit_array = []
+  while len(byte_array) > 0:
+    byte_value = byte_array.pop(0)
+    for i in range(0,8):
+      bit_array.append((byte_value & (1 << i)) >> i)
+  return bit_array
+
 def to_dpcm(pcm_samples):
   current_dpcm_level = dpcm_level(pcm_samples[0])
   dpcm_levels = map(dpcm_level, pcm_samples)
@@ -61,6 +70,18 @@ def to_dpcm(pcm_samples):
       dpcm_bits.append(0)
       current_dpcm_level -= 2
   return pack_dpcm_bits_into_bytes(dpcm_bits)
+
+def bias(dpcm_bytes):
+  bit_array = unpack_bytes_into_bits(list(dpcm_bytes))
+  current_dpcm_level = 0 # signed, also we don't care about range for this
+  while len(bit_array) > 0:
+    sample = bit_array.pop(0)
+    if sample == 1:
+      current_dpcm_level += 2
+    else:
+      current_dpcm_level -= 2
+  return current_dpcm_level
+
 
 playback_rate = [None] * 16
 playback_rate[0x0] = 4181.71

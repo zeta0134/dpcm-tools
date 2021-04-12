@@ -26,6 +26,9 @@ def sawtooth(dt):
 def sine(dt):
     return (math.sin(dt * 2.0 * math.pi) + 1.0) / 2.0
 
+def bias(dt):
+    return dt / 64.0 # baseline bias targets +1 DPCM level
+
 def wave_generator(filename):
     reader = wave.open(filename, "rb")
     sample_count = reader.getnframes()
