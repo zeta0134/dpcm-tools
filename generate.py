@@ -82,11 +82,14 @@ sample_table = []
 note_mappings = []
 tuning_table = generate_tuning_table(playback_rate, 255)
 sample_index = 1
-for i in range(midi.note_index("gs3"), midi.note_index("c4") + 1):
+generator = waveform.sawtooth
+instrument_name = "sawtooth"
+
+for i in range(midi.note_index("c2"), midi.note_index("c5") + 1):
     tuning = smallest_acceptable(tuning_table[i], error_threshold)
-    pcm = generate_pcm(tuning, waveform.sawtooth, playback_rate)
+    pcm = generate_pcm(tuning, generator, playback_rate)
     dpcm_data = dpcm.to_dpcm(pcm)
-    sample_name = "saw-{}".format(midi.note_name(i))
+    sample_name = midi.note_name(i)
     sample_table.append({"name": sample_name, "data": dpcm_data})
     note_mappings.append({"midi_index": i, "sample_index": sample_index, "pitch": 0xF, "looping": True})
     sample_index += 1
@@ -102,6 +105,6 @@ for i in range(midi.note_index("gs3"), midi.note_index("c4") + 1):
 
 note_mappings = fti.fill_lower_samples(note_mappings)
 
-output = io.open("dpcm-saw.fti", "wb")
-fti.write_dpcm_instrument(output, "DPCM saw", note_mappings, sample_table)
+output = io.open("dpcm-{}.fti".format(instrument_name), "wb")
+fti.write_dpcm_instrument(output, "DPCM {}".format(instrument_name), note_mappings, sample_table)
 output.close()
