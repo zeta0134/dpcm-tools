@@ -46,10 +46,10 @@ def smallest_acceptable(ideal_tunings, threshold):
     acceptable_tunings.sort(key=_tuning_length)
     return acceptable_tunings[0]
 
-def generate_pcm(tuning, generator, playback_rate):
+def generate_pcm(tuning, generator, playback_rate, amplitude):
     pcm = []
     for i in range(0, tuning["samples"]):
-        sample = waveform.sample(generator, i, tuning["effective_frequency"], playback_rate)
+        sample = waveform.sample(generator, i, tuning["effective_frequency"], playback_rate) * amplitude
         sample_8bit = int(min(255, max(0, sample * 256)))
         pcm.append(sample_8bit)
     return pcm
@@ -70,7 +70,6 @@ def write_dmc(filename, pcm_data):
 
 
 def generate_mapping(sample_table, target_note_name, source_sample_name, source_dpcm_pitch):
-    
     mapping = {"midi_index": target_midi_index, "sample_index": sample_index, "pitch": source_dpcm_pitch, "looping": True}
     return mapping
 
@@ -82,25 +81,28 @@ sample_table = []
 note_mappings = []
 tuning_table = generate_tuning_table(playback_rate, 255)
 sample_index = 1
-generator = waveform.sawtooth
-instrument_name = "sawtooth"
+generator = waveform.wave_generator("vrc7-brass.wav")
+instrument_name = "brass"
+amplitude = 1.0
 
-for i in range(midi.note_index("c2"), midi.note_index("c5") + 1):
+for i in range(midi.note_index("c3"), midi.note_index("c5") + 1):
     tuning = smallest_acceptable(tuning_table[i], error_threshold)
-    pcm = generate_pcm(tuning, generator, playback_rate)
+    adjusted_amplitude = dpcm.safe_amplitude(tuning["effective_frequency"], playback_rate) * amplitude
+    pcm = generate_pcm(tuning, generator, playback_rate, adjusted_amplitude)
     dpcm_data = dpcm.to_dpcm(pcm)
     sample_name = midi.note_name(i)
     sample_table.append({"name": sample_name, "data": dpcm_data})
-    note_mappings.append({"midi_index": i, "sample_index": sample_index, "pitch": 0xF, "looping": True})
+    note_mappings.append({"midi_index": i + 12, "sample_index": sample_index, "pitch": 0xF, "looping": True, "delta": 0})
     sample_index += 1
 
-    print("{}: Phase: {:.2f}, Error: {:.2f}, Bytes: {}, Repetitions: {}, E. Freq: {:.2f}".format(
+    print("{}: Phase: {:.2f}, Error: {:.2f}, Bytes: {}, Repetitions: {}, E. Freq: {:.2f}, E.Ampl {:.2f}".format(
         midi.note_name(i),
         tuning["phase_offset"],
         tuning["error"],
         tuning["size"],
         tuning["repetitions"],
-        tuning["effective_frequency"]
+        tuning["effective_frequency"],
+        adjusted_amplitude
         ))
 
 note_mappings = fti.fill_lower_samples(note_mappings)
