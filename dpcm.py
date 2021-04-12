@@ -24,6 +24,15 @@ def effective_frequency(length_index, repetitions, playback_rate):
     samples = patch_samples(length_index)
     return playback_rate / (samples / max(repetitions,1))
 
+def safe_amplitude(target_frequency, playback_rate):
+    period_in_samples = playback_rate / target_frequency
+    # DPCM level adjuster is +2 or -2 with a range from 0-127, meaning it can go from
+    # min to max over the course of ~around~ 64 samples. To go bottom to top and down again
+    # is ~around~ 128 samples total. Fudge this just slightly, to provide some headeroom.
+    maximum_theoretical_amplitude = period_in_samples / 128
+    safer_theoretical_amplitude = maximum_theoretical_amplitude * 0.9
+    return min(1.0, safer_theoretical_amplitude)
+
 def dpcm_level(pcm_sample):
   clamped_dpcm_level = int(max(0, min(127, pcm_sample / 2.0)))
   return clamped_dpcm_level
