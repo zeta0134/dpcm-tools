@@ -3,6 +3,9 @@
 # of around 0.5. The result may be biased, so that the waveform starts and
 # ends close to 0.5.
 
+import math
+import wave
+
 def square(dt):
     dt = dt % 1.0
     if dt < 0.25 or dt > 0.75:
@@ -22,6 +25,17 @@ def sawtooth(dt):
 
 def sine(dt):
     return (math.sin(dt * 2.0 * math.pi) + 1.0) / 2.0
+
+def wave_generator(filename):
+    reader = wave.open(filename, "rb")
+    sample_count = reader.getnframes()
+    data = reader.readframes(sample_count)
+    print("Read ", sample_count, " frames from ", filename)
+    reader.close()
+    def generator(dt):
+        sample_index = int((dt * sample_count) % sample_count)
+        return data[sample_index] / 255
+    return generator
 
 def sample(generator, sample_index, frequency, playback_rate):
     dt = sample_index * frequency / playback_rate;
