@@ -20,6 +20,14 @@ def triangle(dt):
         return (dt - 0.75) * 2.0
     return 1.0 - ((dt - 0.25) * 2.0)
 
+# note: meant to be used in situations where the DPCM level shifter can't
+# keep up, to generate an artificially pure triangle
+def artificial_ramp(dt):
+    dt = dt % 1.0
+    if dt <= 0.5:
+        return 2.0
+    return -2.0
+
 def sawtooth(dt):
     return (dt + 0.5) % 1.0
 
