@@ -219,7 +219,9 @@ def main():
             sample = sample_table[note_mapping["sample_index"] - 1]
             sample_filename = os.path.join(args.directory, sample["name"]) + ".dmc"
             os.makedirs(args.directory, exist_ok=True)
-            write_dmc(sample_filename, sample["data"])
+            output = io.open(sample_filename, "wb")
+            output.write(sample["data"])
+            output.close()
 
 if __name__ == "__main__":
     # execute only if run as a script
