@@ -1,9 +1,12 @@
+#!/usr/bin/env python3
+
 import dpcm
 import fti
 import midi
 import waveform
 
 # python stdlib
+import argparse
 import io
 import os
 import wave
@@ -75,17 +78,17 @@ def generate_mapping(sample_table, target_note_name, source_sample_name, source_
     mapping = {"midi_index": target_midi_index, "sample_index": sample_index, "pitch": source_dpcm_pitch, "looping": True}
     return mapping
 
-def generate_samples(waveform_generator, note_list, amplitude=1.0, use_safe_amplitude=True, target_bias=0.0, set_delta=-1,
-        playback_rate=33144, error_threshold=0.0, max_length_bytes=255, prefix="", quiet=True):
+def generate_samples(waveform_generator, note_list, volume=1.0, use_safe_amplitude=True, target_bias=0.0, set_delta=-1,
+        playback_rate=33144, error_threshold=0.0, max_length_bytes=255, prefix="", quiet=False):
     tuning_table = generate_tuning_table(playback_rate, 255)
     sample_table = []
     note_mappings = []
     sample_index = 1
-    for i in range(midi.note_index("f4"), midi.note_index("a4") + 1):
+    for i in note_list:
         tuning = smallest_acceptable(tuning_table[i], error_threshold)
-        target_amplitude = amplitude
+        target_amplitude = volume
         if use_safe_amplitude:
-            target_amplitude = dpcm.safe_amplitude(tuning["effective_frequency"], playback_rate) * amplitude
+            target_amplitude = dpcm.safe_amplitude(tuning["effective_frequency"], playback_rate) * volume
         pcm = generate_pcm(tuning, waveform_generator, playback_rate, target_amplitude, target_bias)
         dpcm_data = dpcm.to_dpcm(pcm, 0)
         sample_name = midi.note_name(i)
@@ -96,7 +99,7 @@ def generate_samples(waveform_generator, note_list, amplitude=1.0, use_safe_ampl
         if not quiet:
             print("{}: Err: {:.2f}, Size: {}, Reps: {}, E. Freq: {:.2f}, E.Ampl {:.2f}, Bias: {}".format(
                 midi.note_name(i), tuning["error"], tuning["size"], tuning["repetitions"],
-                tuning["effective_frequency"], adjusted_amplitude, bias))
+                tuning["effective_frequency"], target_amplitude, bias))
     return sample_table, note_mappings
 
 def parse_note_list(note_list_str):
@@ -111,11 +114,72 @@ def parse_note_list(note_list_str):
                 note_list.append(i)
     return note_list
 
-instrument_name = "atri-tri-1.0"
-note_list = parse_note_list("f4-a4")
-sample_table, note_mappings = generate_samples(waveform.artificial_ramp, note_list, prefix="instrument_name")
-note_mappings = fti.fill_lower_samples(note_mappings)
+examples = """
+Examples:
+  Sawtooth, Sunsoft style:
+    %(prog)s -g sawtooth -i sunsaw.fti as2-d3
 
-output = io.open("instruments/dpcm-{}.fti".format(instrument_name), "wb")
-fti.write_dpcm_instrument(output, "DPCM {}".format(instrument_name), note_mappings, sample_table)
-output.close()
+  Half-volume triangle, positive bias:
+    %(prog)s -g triangle -v 0.5 -b 1 -i tri-50.fti c4-c5
+
+  Custom waveform:
+    %(prog)s -g wave -w organ.wav -i organ.fti c4-c5
+"""
+generators = {
+    "sine": waveform.sine, 
+    "square": waveform.square, 
+    "triangle": waveform.triangle, 
+    "sawtooth": waveform.sawtooth, 
+    "wave": waveform.wave_file, 
+    "artificial_ramp": waveform.artificial_ramp,
+}
+parser = argparse.ArgumentParser(
+    description="Automatically generate looping DPCM samples", 
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    epilog=examples)
+parser.add_argument("notes", help="Notes to generate. Ex: gs2,f3-a3")
+
+generator_group = parser.add_argument_group("Sample Generation")
+generator_group.add_argument("-g", "--generator", metavar="GENERATOR", 
+    help="One of: {}".format(", ".join(generators.keys())), 
+    choices=generators, default="sine")
+generator_group.add_argument("-w", "--wavefile", help="For the wave generator. Should contain one loop, like N163.")
+generator_group.add_argument("-v", "--volume", help="Linear volume multiplier for generated waveforms", type=float, default=1.0)
+generator_group.add_argument("-e", "--error-threshold", help="Prefer smaller samples within this tuning percentage (default: 0%%)", type=float, default=0.0)
+generator_group.add_argument("-b", "--bias", help="Bias generated samples in this direction. (default: 0)", type=int, default=0)
+generator_group.add_argument("-l", "--max-length", help="Longest sample size to consider. Generally improves tuning, costs more space. (default: 255)", type=int, default=255)
+generator_group.add_argument("--safe-volume", help="Scale volume for high notes, to avoid triangle shape creep.", action=argparse.BooleanOptionalAction, default=True)
+
+instrument_group = parser.add_argument_group("FamiTracker Instruments")
+instrument_group.add_argument("-i", "--instrument", help="FamiTracker instrument filename to generate")
+instrument_group.add_argument("--repitch", help="Fill out an instrument's lower range with repitched samples", action=argparse.BooleanOptionalAction, default=True)
+
+args = parser.parse_args()
+
+generator = generators[args.generator]
+if args.generator == "wave":
+    if args.wavefile:
+        generator = waveform.wave_file(args.wavefile)
+    else:
+        exit("Error: wave generator requires -w, --waveform")
+
+if args.instrument:
+    instrument_name = args.instrument
+    note_list = parse_note_list(args.notes)
+    sample_table, note_mappings = generate_samples(
+        generator,
+        note_list,
+        volume=args.volume,
+        use_safe_amplitude=args.safe_volume,
+        target_bias=args.bias,
+        error_threshold=args.error_threshold,
+        max_length_bytes=args.max_length,
+        prefix=instrument_name,
+        )
+    note_mappings = fti.fill_lower_samples(note_mappings)
+
+    output = io.open(instrument_name, "wb")
+    fti.write_dpcm_instrument(output, "DPCM {}".format(instrument_name), note_mappings, sample_table)
+    output.close()
+else:
+    print("Oops, only instrument generation is supported at the moment")

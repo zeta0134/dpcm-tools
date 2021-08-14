@@ -37,7 +37,7 @@ def sine(dt):
 def bias(dt):
     return dt / 64.0 # baseline bias targets +1 DPCM level
 
-def wave_generator(filename):
+def wave_file(filename):
     reader = wave.open(filename, "rb")
     sample_count = reader.getnframes()
     data = reader.readframes(sample_count)
