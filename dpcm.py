@@ -58,8 +58,10 @@ def unpack_bytes_into_bits(byte_array):
       bit_array.append((byte_value & (1 << i)) >> i)
   return bit_array
 
-def to_dpcm(pcm_samples):
+def to_dpcm(pcm_samples, starting_level=None):
   current_dpcm_level = dpcm_level(pcm_samples[0])
+  if starting_level != None:
+    current_dpcm_level = starting_level
   dpcm_levels = map(dpcm_level, pcm_samples)
   dpcm_bits = []
   for target_level in dpcm_levels:
