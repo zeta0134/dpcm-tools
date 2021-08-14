@@ -152,6 +152,7 @@ generator_group.add_argument("--safe-volume", help="Scale volume for high notes,
 
 instrument_group = parser.add_argument_group("FamiTracker Instruments")
 instrument_group.add_argument("-i", "--instrument", help="FamiTracker instrument filename to generate")
+instrument_group.add_argument("-d", "--delta", help="Set the delta counter when playback begins", type=int, default=-1)
 instrument_group.add_argument("--repitch", help="Fill out an instrument's lower range with repitched samples", action=argparse.BooleanOptionalAction, default=True)
 
 args = parser.parse_args()
@@ -174,6 +175,7 @@ if args.instrument:
         target_bias=args.bias,
         error_threshold=args.error_threshold,
         max_length_bytes=args.max_length,
+        set_delta=args.delta,
         prefix=instrument_name,
         )
     note_mappings = fti.fill_lower_samples(note_mappings)
