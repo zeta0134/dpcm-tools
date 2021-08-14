@@ -114,74 +114,79 @@ def parse_note_list(note_list_str):
                 note_list.append(i)
     return note_list
 
-examples = """
-Examples:
-  Sawtooth, Sunsoft style:
-    %(prog)s -g sawtooth -i sunsaw.fti as2-d3
+def main():
+    examples = """
+    Examples:
+      Sawtooth, Sunsoft style:
+        %(prog)s -g sawtooth -i sunsaw.fti as2-d3
 
-  Half-volume triangle, positive bias:
-    %(prog)s -g triangle -v 0.5 -b 1 -i tri-50.fti c4-c5
+      Half-volume triangle, positive bias:
+        %(prog)s -g triangle -v 0.5 -b 1 -i tri-50.fti c4-c5
 
-  Custom waveform:
-    %(prog)s -g wave -w organ.wav -i organ.fti c4-c5
-"""
-generators = {
-    "sine": waveform.sine, 
-    "square": waveform.square, 
-    "triangle": waveform.triangle, 
-    "sawtooth": waveform.sawtooth, 
-    "wave": waveform.wave_file, 
-    "artificial_ramp": waveform.artificial_ramp,
-}
-parser = argparse.ArgumentParser(
-    description="Automatically generate looping DPCM samples", 
-    formatter_class=argparse.RawDescriptionHelpFormatter,
-    epilog=examples)
-parser.add_argument("notes", help="Notes to generate. Ex: gs2,f3-a3")
+      Custom waveform:
+        %(prog)s -g wave -w organ.wav -i organ.fti c4-c5
+    """
+    generators = {
+        "sine": waveform.sine, 
+        "square": waveform.square, 
+        "triangle": waveform.triangle, 
+        "sawtooth": waveform.sawtooth, 
+        "wave": waveform.wave_file, 
+        "artificial_ramp": waveform.artificial_ramp,
+    }
+    parser = argparse.ArgumentParser(
+        description="Automatically generate looping DPCM samples", 
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=examples)
+    parser.add_argument("notes", help="Notes to generate. Ex: gs2,f3-a3")
 
-generator_group = parser.add_argument_group("Sample Generation")
-generator_group.add_argument("-g", "--generator", metavar="GENERATOR", 
-    help="One of: {}".format(", ".join(generators.keys())), 
-    choices=generators, default="sine")
-generator_group.add_argument("-w", "--wavefile", help="For the wave generator. Should contain one loop, like N163.")
-generator_group.add_argument("-v", "--volume", help="Linear volume multiplier for generated waveforms", type=float, default=1.0)
-generator_group.add_argument("-e", "--error-threshold", help="Prefer smaller samples within this tuning percentage (default: 0%%)", type=float, default=0.0)
-generator_group.add_argument("-b", "--bias", help="Bias generated samples in this direction. (default: 0)", type=int, default=0)
-generator_group.add_argument("-l", "--max-length", help="Longest sample size to consider. Generally improves tuning, costs more space. (default: 255)", type=int, default=255)
-generator_group.add_argument("--safe-volume", help="Scale volume for high notes, to avoid triangle shape creep.", action=argparse.BooleanOptionalAction, default=True)
+    generator_group = parser.add_argument_group("Sample Generation")
+    generator_group.add_argument("-g", "--generator", metavar="GENERATOR", 
+        help="One of: {}".format(", ".join(generators.keys())), 
+        choices=generators, default="sine")
+    generator_group.add_argument("-w", "--wavefile", help="For the wave generator. Should contain one loop, like N163.")
+    generator_group.add_argument("-v", "--volume", help="Linear volume multiplier for generated waveforms", type=float, default=1.0)
+    generator_group.add_argument("-e", "--error-threshold", help="Prefer smaller samples within this tuning percentage (default: 0%%)", type=float, default=0.0)
+    generator_group.add_argument("-b", "--bias", help="Bias generated samples in this direction. (default: 0)", type=int, default=0)
+    generator_group.add_argument("-l", "--max-length", help="Longest sample size to consider. Generally improves tuning, costs more space. (default: 255)", type=int, default=255)
+    generator_group.add_argument("--safe-volume", help="Scale volume for high notes, to avoid triangle shape creep.", type=bool, action=argparse.BooleanOptionalAction, default=True)
 
-instrument_group = parser.add_argument_group("FamiTracker Instruments")
-instrument_group.add_argument("-i", "--instrument", help="FamiTracker instrument filename to generate")
-instrument_group.add_argument("-d", "--delta", help="Set the delta counter when playback begins", type=int, default=-1)
-instrument_group.add_argument("--repitch", help="Fill out an instrument's lower range with repitched samples", action=argparse.BooleanOptionalAction, default=True)
+    instrument_group = parser.add_argument_group("FamiTracker Instruments")
+    instrument_group.add_argument("-i", "--instrument", help="FamiTracker instrument filename to generate")
+    instrument_group.add_argument("-d", "--delta", help="Set the delta counter when playback begins", type=int, default=-1)
+    instrument_group.add_argument("--repitch", help="Fill out an instrument's lower range with repitched samples", type=bool, action=argparse.BooleanOptionalAction, default=True)
 
-args = parser.parse_args()
+    args = parser.parse_args()
 
-generator = generators[args.generator]
-if args.generator == "wave":
-    if args.wavefile:
-        generator = waveform.wave_file(args.wavefile)
+    generator = generators[args.generator]
+    if args.generator == "wave":
+        if args.wavefile:
+            generator = waveform.wave_file(args.wavefile)
+        else:
+            exit("Error: wave generator requires -w, --waveform")
+
+    if args.instrument:
+        instrument_name = args.instrument
+        note_list = parse_note_list(args.notes)
+        sample_table, note_mappings = generate_samples(
+            generator,
+            note_list,
+            volume=args.volume,
+            use_safe_amplitude=args.safe_volume,
+            target_bias=args.bias,
+            error_threshold=args.error_threshold,
+            max_length_bytes=args.max_length,
+            set_delta=args.delta,
+            prefix=instrument_name,
+            )
+        note_mappings = fti.fill_lower_samples(note_mappings)
+
+        output = io.open(instrument_name, "wb")
+        fti.write_dpcm_instrument(output, "DPCM {}".format(instrument_name), note_mappings, sample_table)
+        output.close()
     else:
-        exit("Error: wave generator requires -w, --waveform")
+        print("Oops, only instrument generation is supported at the moment")
 
-if args.instrument:
-    instrument_name = args.instrument
-    note_list = parse_note_list(args.notes)
-    sample_table, note_mappings = generate_samples(
-        generator,
-        note_list,
-        volume=args.volume,
-        use_safe_amplitude=args.safe_volume,
-        target_bias=args.bias,
-        error_threshold=args.error_threshold,
-        max_length_bytes=args.max_length,
-        set_delta=args.delta,
-        prefix=instrument_name,
-        )
-    note_mappings = fti.fill_lower_samples(note_mappings)
-
-    output = io.open(instrument_name, "wb")
-    fti.write_dpcm_instrument(output, "DPCM {}".format(instrument_name), note_mappings, sample_table)
-    output.close()
-else:
-    print("Oops, only instrument generation is supported at the moment")
+if __name__ == "__main__":
+    # execute only if run as a script
+    main()
