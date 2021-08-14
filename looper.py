@@ -79,11 +79,14 @@ def generate_mapping(sample_table, target_note_name, source_sample_name, source_
     return mapping
 
 def generate_samples(waveform_generator, note_list, volume=1.0, use_safe_amplitude=True, target_bias=0.0, set_delta=-1,
-        playback_rate=33144, error_threshold=0.0, max_length_bytes=255, prefix="", quiet=False):
+        playback_rate=33144, error_threshold=0.0, max_length_bytes=255, prefix=None, quiet=False):
     tuning_table = generate_tuning_table(playback_rate, 255)
     sample_table = []
     note_mappings = []
     sample_index = 1
+    sample_prefix = ""
+    if prefix:
+        sample_prefix = prefix + "-"
     for i in note_list:
         tuning = smallest_acceptable(tuning_table[i], error_threshold)
         target_amplitude = volume
@@ -92,7 +95,7 @@ def generate_samples(waveform_generator, note_list, volume=1.0, use_safe_amplitu
         pcm = generate_pcm(tuning, waveform_generator, playback_rate, target_amplitude, target_bias)
         dpcm_data = dpcm.to_dpcm(pcm, 0)
         sample_name = midi.note_name(i)
-        sample_table.append({"name": instrument_name+sample_name, "data": dpcm_data})
+        sample_table.append({"name": sample_prefix+sample_name, "data": dpcm_data})
         note_mappings.append({"midi_index": i + 12, "sample_index": sample_index, "pitch": 0xF, "looping": True, "delta": set_delta})
         sample_index += 1
         bias = dpcm.bias(dpcm_data)
@@ -113,6 +116,21 @@ def parse_note_list(note_list_str):
             for i in range(midi.note_index(notes[0]), midi.note_index(notes[1]) + 1):
                 note_list.append(i)
     return note_list
+
+def full_instrument_name(args):
+    (nicename, ext) = os.path.splitext(os.path.basename(args.instrument))
+    full_instrument_name = args.fullname or "DPCM {}".format(nicename)
+
+def sample_prefix(args):
+    if args.prefix:
+        return args.prefix
+    if args.instrument:
+        (nicename, ext) = os.path.splitext(os.path.basename(args.instrument))
+        return nicename
+    if args.directory:
+        (head, tail) = os.path.split(args.directory)
+        return tail
+    return None
 
 def main():
     examples = """
@@ -139,6 +157,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=examples)
     parser.add_argument("notes", help="Notes to generate. Ex: gs2,f3-a3")
+    parser.add_argument("-s", "--directory", help="Directory to store generated samples as .dmc")
+    parser.add_argument("-i", "--instrument", help="FamiTracker instrument filename to generate")
+    parser.add_argument("--prefix", help="Samples will be named [prefix]-[note] (default: filename)")
 
     generator_group = parser.add_argument_group("Sample Generation")
     generator_group.add_argument("-g", "--generator", metavar="GENERATOR", 
@@ -152,9 +173,9 @@ def main():
     generator_group.add_argument("--safe-volume", help="Scale volume for high notes, to avoid triangle shape creep.", type=bool, action=argparse.BooleanOptionalAction, default=True)
 
     instrument_group = parser.add_argument_group("FamiTracker Instruments")
-    instrument_group.add_argument("-i", "--instrument", help="FamiTracker instrument filename to generate")
     instrument_group.add_argument("-d", "--delta", help="Set the delta counter when playback begins", type=int, default=-1)
     instrument_group.add_argument("--repitch", help="Fill out an instrument's lower range with repitched samples", type=bool, action=argparse.BooleanOptionalAction, default=True)
+    instrument_group.add_argument("--fullname", help="The full name of this instrument, show in FamiTracker's UI")
 
     args = parser.parse_args()
 
@@ -165,27 +186,40 @@ def main():
         else:
             exit("Error: wave generator requires -w, --waveform")
 
+    if not args.instrument and not args.directory:
+        exit("Error: Missing output! (-i, --instrument; or -d, --directory)\nYou asked me to do nothing, so I will do just that.")
+
+    note_list = parse_note_list(args.notes)
+    sample_table, note_mappings = generate_samples(
+        generator,
+        note_list,
+        volume=args.volume,
+        use_safe_amplitude=args.safe_volume,
+        target_bias=args.bias,
+        error_threshold=args.error_threshold,
+        max_length_bytes=args.max_length,
+        set_delta=args.delta,
+        prefix=sample_prefix(args),
+        )
+
     if args.instrument:
-        instrument_name = args.instrument
-        note_list = parse_note_list(args.notes)
-        sample_table, note_mappings = generate_samples(
-            generator,
-            note_list,
-            volume=args.volume,
-            use_safe_amplitude=args.safe_volume,
-            target_bias=args.bias,
-            error_threshold=args.error_threshold,
-            max_length_bytes=args.max_length,
-            set_delta=args.delta,
-            prefix=instrument_name,
-            )
+        instrument_filename = args.instrument
+        (nicename, ext) = os.path.splitext(os.path.basename(instrument_filename))
+        full_instrument_name = args.fullname or "DPCM {}".format(nicename)
+
         note_mappings = fti.fill_lower_samples(note_mappings)
 
-        output = io.open(instrument_name, "wb")
-        fti.write_dpcm_instrument(output, "DPCM {}".format(instrument_name), note_mappings, sample_table)
+        output = io.open(instrument_filename, "wb")
+        fti.write_dpcm_instrument(output, full_instrument_name, note_mappings, sample_table)
         output.close()
-    else:
-        print("Oops, only instrument generation is supported at the moment")
+
+    if args.directory:
+        for note_mapping in note_mappings:
+            note_name = midi.note_name(note_mapping["midi_index"])
+            sample = sample_table[note_mapping["sample_index"] - 1]
+            sample_filename = os.path.join(args.directory, sample["name"]) + ".dmc"
+            os.makedirs(args.directory, exist_ok=True)
+            write_dmc(sample_filename, sample["data"])
 
 if __name__ == "__main__":
     # execute only if run as a script
