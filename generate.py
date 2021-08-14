@@ -75,43 +75,47 @@ def generate_mapping(sample_table, target_note_name, source_sample_name, source_
     mapping = {"midi_index": target_midi_index, "sample_index": sample_index, "pitch": source_dpcm_pitch, "looping": True}
     return mapping
 
+def generate_samples(waveform_generator, note_list, amplitude=1.0, use_safe_amplitude=True, target_bias=0.0, set_delta=-1,
+        playback_rate=33144, error_threshold=0.0, max_length_bytes=255, prefix="", quiet=True):
+    tuning_table = generate_tuning_table(playback_rate, 255)
+    sample_table = []
+    note_mappings = []
+    sample_index = 1
+    for i in range(midi.note_index("f4"), midi.note_index("a4") + 1):
+        tuning = smallest_acceptable(tuning_table[i], error_threshold)
+        target_amplitude = amplitude
+        if use_safe_amplitude:
+            target_amplitude = dpcm.safe_amplitude(tuning["effective_frequency"], playback_rate) * amplitude
+        pcm = generate_pcm(tuning, waveform_generator, playback_rate, target_amplitude, target_bias)
+        dpcm_data = dpcm.to_dpcm(pcm, 0)
+        sample_name = midi.note_name(i)
+        sample_table.append({"name": instrument_name+sample_name, "data": dpcm_data})
+        note_mappings.append({"midi_index": i + 12, "sample_index": sample_index, "pitch": 0xF, "looping": True, "delta": set_delta})
+        sample_index += 1
+        bias = dpcm.bias(dpcm_data)
+        if not quiet:
+            print("{}: Err: {:.2f}, Size: {}, Reps: {}, E. Freq: {:.2f}, E.Ampl {:.2f}, Bias: {}".format(
+                midi.note_name(i), tuning["error"], tuning["size"], tuning["repetitions"],
+                tuning["effective_frequency"], adjusted_amplitude, bias))
+    return sample_table, note_mappings
 
-# DEBUG
-playback_rate = 33144
-error_threshold = 0.005
-sample_table = []
-note_mappings = []
-tuning_table = generate_tuning_table(playback_rate, 255)
-sample_index = 1
-generator = waveform.triangle
-instrument_name = "triangle-bias"
-amplitude = 1.0
-target_bias = -1.0
-delta_counter = -1
+def parse_note_list(note_list_str):
+    entries = note_list_str.split(",")
+    note_list = []
+    for entry in entries:
+        notes = entry.split("-")
+        if len(notes) == 1:
+            note_list.append(midi.note_index(entry))
+        else:
+            for i in range(midi.note_index(notes[0]), midi.note_index(notes[1]) + 1):
+                note_list.append(i)
+    return note_list
 
-for i in range(midi.note_index("c2"), midi.note_index("c3") + 1):
-    tuning = smallest_acceptable(tuning_table[i], error_threshold)
-    adjusted_amplitude = dpcm.safe_amplitude(tuning["effective_frequency"], playback_rate) * amplitude
-    pcm = generate_pcm(tuning, generator, playback_rate, adjusted_amplitude, target_bias)
-    dpcm_data = dpcm.to_dpcm(pcm)
-    sample_name = midi.note_name(i)
-    sample_table.append({"name": instrument_name+sample_name, "data": dpcm_data})
-    note_mappings.append({"midi_index": i + 12, "sample_index": sample_index, "pitch": 0xF, "looping": True, "delta": delta_counter})
-    sample_index += 1
-    bias = dpcm.bias(dpcm_data)
-
-    print("{}: Err: {:.2f}, Size: {}, Reps: {}, E. Freq: {:.2f}, E.Ampl {:.2f}, Bias: {}".format(
-        midi.note_name(i),
-        tuning["error"],
-        tuning["size"],
-        tuning["repetitions"],
-        tuning["effective_frequency"],
-        adjusted_amplitude,
-        bias
-        ))
-
+instrument_name = "atri-tri-1.0"
+note_list = parse_note_list("f4-a4")
+sample_table, note_mappings = generate_samples(waveform.artificial_ramp, note_list, prefix="instrument_name")
 note_mappings = fti.fill_lower_samples(note_mappings)
 
-output = io.open("dpcm-{}.fti".format(instrument_name), "wb")
+output = io.open("instruments/dpcm-{}.fti".format(instrument_name), "wb")
 fti.write_dpcm_instrument(output, "DPCM {}".format(instrument_name), note_mappings, sample_table)
 output.close()
