@@ -56,37 +56,57 @@ def resample_nearest(source_samples, speed):
         resampled_samples.append(source_samples[int(i * speed)])
     return resampled_samples
 
+
+def resample_note(source_data, source_samplerate, target_samplerate, source_frequency, target_frequency, resampler=resample_nearest):
+    # first deal with differences in our source PCM and our target PCM playback rate
+    conversion_speed = source_samplerate / target_samplerate
+    # next deal with differences between the two MIDI frequencies, and come up with a speed correction
+    repitch_speed = target_frequency / source_frequency
+    # Put it all together and perform the resample
+    combined_speed = conversion_speed * repitch_speed
+    resampled_data = resampler(source_data, combined_speed)
+    return resampled_data
+
+def generate_repitched_instrument(source_data, source_samplerate, source_note, target_notes, target_quality=0xF, max_length=4081, prefix=None, set_delta=-1,):
+    note_mappings = []
+    sample_table = []
+    sample_prefix = ""
+    sample_index = 1
+    target_rate = dpcm.playback_rate[target_quality]
+    note_list = midi.parse_note_list(target_notes)
+    source_frequency = midi.frequency[midi.note_index(source_note)]
+
+    if prefix:
+        sample_prefix = prefix + "-"
+
+    for target_note in note_list:
+        target_frequency = midi.frequency[target_note]
+        resampled_pcm = resample_note(source_data, source_samplerate, target_rate, source_frequency, target_frequency)
+        if len(resampled_pcm) > max_length * 8:
+            print("Data is too long, truncating to {} bytes".format(max_length))
+            resampled_pcm = resampled_pcm[0:(max_length*8)]
+        dpcm_data = dpcm.to_dpcm(resampled_pcm, 0)
+        sample_name = midi.note_name(target_note)
+        sample_table.append({"name": sample_prefix+sample_name, "data": dpcm_data})
+        note_mappings.append({"midi_index": target_note + 12, "sample_index": sample_index, "pitch": 0xF, "looping": False, "delta": set_delta})
+        sample_index += 1
+    return sample_table, note_mappings
+
 def main():
     print("Will do a thing")
-    filename = "abass-A2.wav"
+    filename = "synthbass-C3.wav"
     quality = 0xF
-    source_note = "A2"
-    target_note = "D3"
+    source_note = "C3"
+    target_note = "D3-D4"
 
     data, samplerate = read_wave(filename)
     print("Read {} samples from {} at {} Hz".format(len(data), filename, samplerate))
 
-    target_rate = dpcm.playback_rate[quality]
-    conversion_speed = samplerate / target_rate
-    print("Will sample at {:.4g} speed to target {} Hz".format(conversion_speed, target_rate))
-    source_frequency = midi.frequency[midi.note_index(source_note)]
-    target_frequency = midi.frequency[midi.note_index(target_note)]
-    repitch_speed = target_frequency / source_frequency
-    print("To repitch from {} to {}, will adjust speed by {:.4g}%".format(source_note, target_note, repitch_speed))
-    combined_speed = conversion_speed * repitch_speed
-    print("Combined adjustment: {:.4g}%".format(combined_speed))
+    (sample_table, note_mappings) = generate_repitched_instrument(data, samplerate, source_note, target_note, set_delta=32, max_length=512)
+    note_mappings = fti.fill_lower_samples(note_mappings)
 
-    resampled_data = resample_nearest(data, combined_speed)
-    print("Resampled data to new length: {}".format((len(resampled_data))))
-
-    if len(resampled_data) > 4081 * 8:
-        print("Data is too long, truncating to 4081*8 samples")
-        resampled_data = resampled_data[0:(4081*8)]
-
-    # sure, let's just spit it out
-    dpcm_data = dpcm.to_dpcm(resampled_data)
-    output = io.open("abass-D3.dmc", "wb")
-    output.write(dpcm_data)
+    output = io.open("test.fti", "wb")
+    fti.write_dpcm_instrument(output, "TEST", note_mappings, sample_table)
     output.close()
 
 
