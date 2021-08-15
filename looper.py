@@ -105,18 +105,6 @@ def generate_samples(waveform_generator, note_list, volume=1.0, use_safe_amplitu
                 tuning["effective_frequency"], target_amplitude, bias))
     return sample_table, note_mappings
 
-def parse_note_list(note_list_str):
-    entries = note_list_str.split(",")
-    note_list = []
-    for entry in entries:
-        notes = entry.split("-")
-        if len(notes) == 1:
-            note_list.append(midi.note_index(entry))
-        else:
-            for i in range(midi.note_index(notes[0]), midi.note_index(notes[1]) + 1):
-                note_list.append(i)
-    return note_list
-
 def full_instrument_name(args):
     (nicename, ext) = os.path.splitext(os.path.basename(args.instrument))
     full_instrument_name = args.fullname or "DPCM {}".format(nicename)
@@ -189,7 +177,7 @@ def main():
     if not args.instrument and not args.directory:
         exit("Error: Missing output! (-i, --instrument; or -d, --directory)\nYou asked me to do nothing, so I will do just that.")
 
-    note_list = parse_note_list(args.notes)
+    note_list = midi.parse_note_list(args.notes)
     sample_table, note_mappings = generate_samples(
         generator,
         note_list,

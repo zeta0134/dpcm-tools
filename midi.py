@@ -120,3 +120,15 @@ def note_name(midi_index):
     letter = letter_indices[midi_index % 12]
     octave = str(int(midi_index / 12))
     return letter + octave
+
+def parse_note_list(note_list_str):
+    entries = note_list_str.split(",")
+    note_list = []
+    for entry in entries:
+        notes = entry.split("-")
+        if len(notes) == 1:
+            note_list.append(note_index(entry))
+        else:
+            for i in range(note_index(notes[0]), note_index(notes[1]) + 1):
+                note_list.append(i)
+    return note_list
