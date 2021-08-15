@@ -76,7 +76,7 @@ def note_by_index(note_mappings, index):
       return note_mapping
   return None
 
-def fill_lower_samples(note_mappings):
+def fill_lower_samples(note_mappings, quiet=True):
   for midi_index in range(12, 127, 1):
     note_mapping = note_by_index(note_mappings, midi_index)
     if note_mapping:
@@ -88,7 +88,8 @@ def fill_lower_samples(note_mappings):
           target_note_mapping = note_by_index(note_mappings, target_midi_index)
           if target_note_mapping == None:
             # create a new note mapping, with the lower pitch
-            print("Will map ", midi.note_name(midi_index), " with dpcm rate ", note_mapping["pitch"], " to lower note ", midi.note_name(target_midi_index), " with dpcm rate ", dpcm_pitch - 1)
+            if not quiet:
+              print("Will map ", midi.note_name(midi_index), " with dpcm rate ", note_mapping["pitch"], " to lower note ", midi.note_name(target_midi_index), " with dpcm rate ", dpcm_pitch - 1)
             target_note_mapping = {"midi_index": target_midi_index, "sample_index": note_mapping["sample_index"], "pitch": dpcm_pitch - 1, "looping": note_mapping["looping"], "delta": note_mapping["delta"]}
             note_mappings.append(target_note_mapping)
   return note_mappings
