@@ -6,6 +6,7 @@ import midi
 
 # python stdlib
 import argparse
+import os
 import io
 import wave
 import struct
@@ -88,9 +89,20 @@ def generate_repitched_instrument(source_data, source_samplerate, source_note, t
         dpcm_data = dpcm.to_dpcm(resampled_pcm, 0)
         sample_name = midi.note_name(target_note)
         sample_table.append({"name": sample_prefix+sample_name, "data": dpcm_data})
-        note_mappings.append({"midi_index": target_note + 12, "sample_index": sample_index, "pitch": 0xF, "looping": False, "delta": set_delta})
+        note_mappings.append({"midi_index": target_note + 12, "sample_index": sample_index, "pitch": target_quality, "looping": False, "delta": set_delta})
         sample_index += 1
     return sample_table, note_mappings
+
+def sample_prefix(args):
+    if args.prefix:
+        return args.prefix
+    if args.instrument:
+        (nicename, ext) = os.path.splitext(os.path.basename(args.instrument))
+        return nicename
+    if args.directory:
+        (head, tail) = os.path.split(args.directory)
+        return tail
+    return None
 
 def main():
     parser = argparse.ArgumentParser(
@@ -100,21 +112,33 @@ def main():
     parser.add_argument("notes", help="Notes to generate. Ex: gs2,f3-a3")
     parser.add_argument("-r", "--reference", help="Reference note for the source waveform, used for repitching. (default: C4)", default="C4")
     parser.add_argument("-i", "--instrument", help="FamiTracker instrument filename to generate")
+    parser.add_argument("--prefix", help="Samples will be named [prefix]-[note] (default: filename)")
+
+    generator_group = parser.add_argument_group("Sample Generation")
+    generator_group.add_argument("-l", "--max-length", help="Samples longer than this will be truncated. Values larger than 4081 are invalid. (default: 4081)", type=int, default=4081)
+    generator_group.add_argument("-q", "--quality", help="DPCM playback rate, ranging from 0 - 15. (default: 15)", type=int, default=15)
+
+    instrument_group = parser.add_argument_group("FamiTracker Instruments")
+    instrument_group.add_argument("-d", "--delta", help="Set the delta counter when playback begins", type=int, default=-1)
+    instrument_group.add_argument("--repitch", help="Fill out an instrument's lower range with repitched samples", type=bool, action=argparse.BooleanOptionalAction, default=True)
+    instrument_group.add_argument("--fullname", help="The full name of this instrument, show in FamiTracker's UI")
 
     args = parser.parse_args()
-
-    # fix this
-    quality = 0xF
 
     data, samplerate = read_wave(args.source)
     print("Read {} samples from {} at {} Hz".format(len(data), args.source, samplerate))
 
-    (sample_table, note_mappings) = generate_repitched_instrument(data, samplerate, args.reference, args.notes, set_delta=32, max_length=4081)
+    (sample_table, note_mappings) = generate_repitched_instrument(data, samplerate, args.reference, args.notes, target_quality=args.quality, 
+        set_delta=args.delta, max_length=args.max_length, prefix=sample_prefix(args))
 
     if args.instrument:
+        instrument_filename = args.instrument
+        (nicename, ext) = os.path.splitext(os.path.basename(instrument_filename))
+        full_instrument_name = args.fullname or "DPCM {}".format(nicename)
+
         note_mappings = fti.fill_lower_samples(note_mappings)
         output = io.open(args.instrument, "wb")
-        fti.write_dpcm_instrument(output, "TEST", note_mappings, sample_table)
+        fti.write_dpcm_instrument(output, full_instrument_name, note_mappings, sample_table)
         output.close()
     else:
         print("Sorry, only instrument generation supported at the moment.")
