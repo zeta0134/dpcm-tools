@@ -5,6 +5,7 @@ import fti
 import midi
 
 # python stdlib
+import argparse
 import io
 import wave
 import struct
@@ -83,7 +84,6 @@ def generate_repitched_instrument(source_data, source_samplerate, source_note, t
         target_frequency = midi.frequency[target_note]
         resampled_pcm = resample_note(source_data, source_samplerate, target_rate, source_frequency, target_frequency)
         if len(resampled_pcm) > max_length * 8:
-            print("Data is too long, truncating to {} bytes".format(max_length))
             resampled_pcm = resampled_pcm[0:(max_length*8)]
         dpcm_data = dpcm.to_dpcm(resampled_pcm, 0)
         sample_name = midi.note_name(target_note)
@@ -93,21 +93,31 @@ def generate_repitched_instrument(source_data, source_samplerate, source_note, t
     return sample_table, note_mappings
 
 def main():
-    print("Will do a thing")
-    filename = "synthbass-C3.wav"
+    parser = argparse.ArgumentParser(
+        description="Generate melodic DPCM from a single source sample", 
+        formatter_class=argparse.RawDescriptionHelpFormatter,)
+    parser.add_argument("source", help="Path to a source .wav file. Accepts unsigned 8bit, signed 16bit, mono or stereo.")
+    parser.add_argument("notes", help="Notes to generate. Ex: gs2,f3-a3")
+    parser.add_argument("-r", "--reference", help="Reference note for the source waveform, used for repitching. (default: C4)", default="C4")
+    parser.add_argument("-i", "--instrument", help="FamiTracker instrument filename to generate")
+
+    args = parser.parse_args()
+
+    # fix this
     quality = 0xF
-    source_note = "C3"
-    target_note = "D3-D4"
 
-    data, samplerate = read_wave(filename)
-    print("Read {} samples from {} at {} Hz".format(len(data), filename, samplerate))
+    data, samplerate = read_wave(args.source)
+    print("Read {} samples from {} at {} Hz".format(len(data), args.source, samplerate))
 
-    (sample_table, note_mappings) = generate_repitched_instrument(data, samplerate, source_note, target_note, set_delta=32, max_length=512)
-    note_mappings = fti.fill_lower_samples(note_mappings)
+    (sample_table, note_mappings) = generate_repitched_instrument(data, samplerate, args.reference, args.notes, set_delta=32, max_length=4081)
 
-    output = io.open("test.fti", "wb")
-    fti.write_dpcm_instrument(output, "TEST", note_mappings, sample_table)
-    output.close()
+    if args.instrument:
+        note_mappings = fti.fill_lower_samples(note_mappings)
+        output = io.open(args.instrument, "wb")
+        fti.write_dpcm_instrument(output, "TEST", note_mappings, sample_table)
+        output.close()
+    else:
+        print("Sorry, only instrument generation supported at the moment.")
 
 
 
