@@ -22,12 +22,9 @@ def fix_16bit_pcm(raw_bytes, nframes):
     return combined_frames
 
 def fix_sample_width(mono_frames, sample_width):
-    min_sample = 0
-    max_sample = 255
-    if sample_width == 2:
-        min_sample = -32768
-        max_sample = 32767
-    scale = (max_sample - min_sample) / 127
+    min_sample = -32768
+    max_sample = 32767
+    scale = (max_sample - min_sample) / 256
     scaled_frames = [(sample - min_sample) / scale for sample in mono_frames]
     return scaled_frames
 
@@ -86,7 +83,7 @@ def generate_repitched_instrument(source_data, source_samplerate, source_note, t
         resampled_pcm = resample_note(source_data, source_samplerate, target_rate, source_frequency, target_frequency)
         if len(resampled_pcm) > max_length * 8:
             resampled_pcm = resampled_pcm[0:(max_length*8)]
-        dpcm_data = dpcm.to_dpcm(resampled_pcm, 0)
+        dpcm_data = dpcm.to_dpcm(resampled_pcm)
         sample_name = midi.note_name(target_note)
         sample_table.append({"name": sample_prefix+sample_name, "data": dpcm_data})
         note_mappings.append({"midi_index": target_note + 12, "sample_index": sample_index, "pitch": target_quality, "looping": False, "delta": set_delta})
