@@ -80,7 +80,7 @@ def generate_mapping(sample_table, target_note_name, source_sample_name, source_
 
 def generate_samples(waveform_generator, note_list, volume=1.0, use_safe_amplitude=True, target_bias=0.0, set_delta=-1,
         playback_rate=33144, error_threshold=0.0, max_length_bytes=255, prefix=None, quiet=False):
-    tuning_table = generate_tuning_table(playback_rate, 255)
+    tuning_table = generate_tuning_table(playback_rate, max_length_bytes)
     sample_table = []
     note_mappings = []
     sample_index = 1
@@ -93,7 +93,7 @@ def generate_samples(waveform_generator, note_list, volume=1.0, use_safe_amplitu
         if use_safe_amplitude:
             target_amplitude = dpcm.safe_amplitude(tuning["effective_frequency"], playback_rate) * volume
         pcm = generate_pcm(tuning, waveform_generator, playback_rate, target_amplitude, target_bias)
-        dpcm_data = dpcm.to_dpcm(pcm, 0)
+        dpcm_data = dpcm.to_dpcm(pcm)
         sample_name = midi.note_name(i)
         sample_table.append({"name": sample_prefix+sample_name, "data": dpcm_data})
         note_mappings.append({"midi_index": i + 12, "sample_index": sample_index, "pitch": 0xF, "looping": True, "delta": set_delta})
