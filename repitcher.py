@@ -117,8 +117,10 @@ def main():
 
     instrument_group = parser.add_argument_group("FamiTracker Instruments")
     instrument_group.add_argument("-d", "--delta", help="Set the delta counter when playback begins", type=int, default=-1)
-    instrument_group.add_argument("--repitch", help="Fill out an instrument's lower range with repitched samples", type=bool, action=argparse.BooleanOptionalAction, default=True)
+    instrument_group.add_argument("--repitch", dest="repitch", help="Fill out an instrument's lower range with repitched samples (default: True)", action='store_true')
+    instrument_group.add_argument("--no-repitch", dest="repitch", help="Do not fill out the instrument's lower range", action='store_false')
     instrument_group.add_argument("--fullname", help="The full name of this instrument, show in FamiTracker's UI")
+    instrument_group.set_defaults(repitch=True)
 
     args = parser.parse_args()
 

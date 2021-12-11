@@ -158,12 +158,15 @@ def main():
     generator_group.add_argument("-e", "--error-threshold", help="Prefer smaller samples within this tuning percentage (default: 0%%)", type=float, default=0.0)
     generator_group.add_argument("-b", "--bias", help="Bias generated samples in this direction. (default: 0)", type=int, default=0)
     generator_group.add_argument("-l", "--max-length", help="Longest sample size to consider. Generally improves tuning, costs more space. (default: 255)", type=int, default=255)
-    generator_group.add_argument("--safe-volume", help="Scale volume for high notes, to avoid triangle shape creep.", type=bool, action=argparse.BooleanOptionalAction, default=True)
+    generator_group.add_argument("--safe-volume", dest="safe_volume", help="Scale volume for high notes, to avoid triangle shape creep. (default: True)", action='store_true')
+    generator_group.add_argument("--no-safe-volume", dest="safe_volume", help="Do not scale volume", action='store_false')
 
     instrument_group = parser.add_argument_group("FamiTracker Instruments")
     instrument_group.add_argument("-d", "--delta", help="Set the delta counter when playback begins", type=int, default=-1)
-    instrument_group.add_argument("--repitch", help="Fill out an instrument's lower range with repitched samples", type=bool, action=argparse.BooleanOptionalAction, default=True)
+    instrument_group.add_argument("--repitch", dest="repitch", help="Fill out an instrument's lower range with repitched samples (default: True)", action='store_true')
+    instrument_group.add_argument("--no-repitch", dest="repitch", help="Do not fill out the instrument's lower range", action='store_false')
     instrument_group.add_argument("--fullname", help="The full name of this instrument, show in FamiTracker's UI")
+    instrument_group.set_defaults(repitch=True, safe_volume=True)
 
     args = parser.parse_args()
 
