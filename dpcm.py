@@ -119,3 +119,26 @@ equivalency[0x3] = midi.note_index("G1") - midi.note_index("F1")
 equivalency[0x2] = midi.note_index("F1") - midi.note_index("E1")
 equivalency[0x1] = midi.note_index("E1") - midi.note_index("D1")
 equivalency[0x0] = midi.note_index("D1") - midi.note_index("C1")
+
+# in cents, compared to rate + $1
+repitching_error = [None] * 16
+repitching_error[0xE] = 2.0
+repitching_error[0xD] = 33.1
+repitching_error[0xC] = -2.7
+repitching_error[0xB] = -26.5
+repitching_error[0xA] = 20.3
+repitching_error[0x9] = -6.6
+repitching_error[0x8] = 2.5
+repitching_error[0x7] = -5.9
+repitching_error[0x6] = 5.5
+repitching_error[0x5] = -2.2
+repitching_error[0x4] = -5.4
+repitching_error[0x3] = 5.5
+repitching_error[0x2] = -5.0
+repitching_error[0x1] = 7.4
+repitching_error[0x0] = -5.9
+
+def cumulative_repitching_error(reference_rate, target_rate):
+  if reference_rate == target_rate:
+    return 0
+  return sum(repitching_error[target_rate : reference_rate])

@@ -79,7 +79,9 @@ def generate_mapping(sample_table, target_note_name, source_sample_name, source_
     return mapping
 
 def generate_samples(waveform_generator, note_list, volume=1.0, use_safe_amplitude=True, target_bias=0.0, set_delta=-1,
-        playback_rate=33144, error_threshold=0.0, max_length_bytes=255, prefix=None, quiet=False):
+        playback_index=0xF, error_threshold=0.0, max_length_bytes=255, prefix=None, quiet=False):    
+    playback_rate = dpcm.playback_rate[playback_index]
+    print("Playback rate: ", playback_rate)
     tuning_table = generate_tuning_table(playback_rate, max_length_bytes)
     sample_table = []
     note_mappings = []
@@ -93,10 +95,13 @@ def generate_samples(waveform_generator, note_list, volume=1.0, use_safe_amplitu
         if use_safe_amplitude:
             target_amplitude = dpcm.safe_amplitude(tuning["effective_frequency"], playback_rate) * volume
         pcm = generate_pcm(tuning, waveform_generator, playback_rate, target_amplitude, target_bias)
-        dpcm_data = dpcm.to_dpcm(pcm)
+        if waveform_generator == waveform.artificial_ramp:
+            dpcm_data = dpcm.to_dpcm(pcm, starting_level=0)
+        else:
+            dpcm_data = dpcm.to_dpcm(pcm)
         sample_name = midi.note_name(i)
         sample_table.append({"name": sample_prefix+sample_name, "data": dpcm_data})
-        note_mappings.append({"midi_index": i + 12, "sample_index": sample_index, "pitch": 0xF, "looping": True, "delta": set_delta})
+        note_mappings.append({"midi_index": i + 12, "sample_index": sample_index, "pitch": playback_index, "looping": True, "delta": set_delta})
         sample_index += 1
         bias = dpcm.bias(dpcm_data)
         if not quiet:
@@ -158,6 +163,7 @@ def main():
     generator_group.add_argument("-e", "--error-threshold", help="Prefer smaller samples within this tuning percentage (default: 0%%)", type=float, default=0.0)
     generator_group.add_argument("-b", "--bias", help="Bias generated samples in this direction. (default: 0)", type=int, default=0)
     generator_group.add_argument("-l", "--max-length", help="Longest sample size to consider. Generally improves tuning, costs more space. (default: 255)", type=int, default=255)
+    generator_group.add_argument("-r", "--playback-rate", help="Base rate for sample playback. Defaults to 0xF, 33143 Hz", type=int, default=0xF)
     generator_group.add_argument("--safe-volume", dest="safe_volume", help="Scale volume for high notes, to avoid triangle shape creep. (default: True)", action='store_true')
     generator_group.add_argument("--no-safe-volume", dest="safe_volume", help="Do not scale volume", action='store_false')
 
@@ -191,6 +197,7 @@ def main():
         max_length_bytes=args.max_length,
         set_delta=args.delta,
         prefix=sample_prefix(args),
+        playback_index=args.playback_rate
         )
 
     if args.instrument:
