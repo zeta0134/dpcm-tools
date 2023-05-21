@@ -96,8 +96,8 @@ def sample_prefix(args):
     if args.instrument:
         (nicename, ext) = os.path.splitext(os.path.basename(args.instrument))
         return nicename
-    if args.directory:
-        (head, tail) = os.path.split(args.directory)
+    if args.source:
+        (head, tail) = os.path.split(args.source)
         return tail
     return None
 
