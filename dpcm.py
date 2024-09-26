@@ -1,5 +1,6 @@
 import midi
 import math
+import collections
 
 # note: sensible indexes here range from 0-255
 def patch_bytes(length_index):
@@ -39,14 +40,17 @@ def dpcm_level(pcm_sample):
   return pcm_sample / 2.0
 
 def pack_dpcm_bits_into_bytes(bit_array):
+  # pad the bit array out to one complete byte
   while len(bit_array) % 8 != 0:
     # oscillate the appended sample, so we don't move too far from the last position in the real data
     bit_array.append(len(bit_array) % 2)
+  # here go from list -> deque, which has MUCH faster pop performance
+  bit_array = collections.deque(bit_array)
   byte_array = []
   while len(bit_array) > 0:
     byte_value = 0
     for i in range(0,8):
-      byte_value += bit_array.pop(0) << i
+      byte_value += bit_array.popleft() << i
     byte_array.append(byte_value)
   return bytes(byte_array)
 
@@ -103,22 +107,37 @@ playback_rate[0xD] = 21306.8
 playback_rate[0xE] = 24858.0
 playback_rate[0xF] = 33143.9
 
-equivalency = [None] * 16
-equivalency[0xE] = midi.note_index("C4") - midi.note_index("G3")
-equivalency[0xD] = midi.note_index("G3") - midi.note_index("E3")
-equivalency[0xC] = midi.note_index("E3") - midi.note_index("C3")
-equivalency[0xB] = midi.note_index("C3") - midi.note_index("A2")
-equivalency[0xA] = midi.note_index("A2") - midi.note_index("G2")
-equivalency[0x9] = midi.note_index("G2") - midi.note_index("F2")
-equivalency[0x8] = midi.note_index("F2") - midi.note_index("D2")
-equivalency[0x7] = midi.note_index("D2") - midi.note_index("C2")
-equivalency[0x6] = midi.note_index("C2") - midi.note_index("B1")
-equivalency[0x5] = midi.note_index("B1") - midi.note_index("A1")
-equivalency[0x4] = midi.note_index("A1") - midi.note_index("G1")
-equivalency[0x3] = midi.note_index("G1") - midi.note_index("F1")
-equivalency[0x2] = midi.note_index("F1") - midi.note_index("E1")
-equivalency[0x1] = midi.note_index("E1") - midi.note_index("D1")
-equivalency[0x0] = midi.note_index("D1") - midi.note_index("C1")
+ntsc_equivalency = [None] * 16
+ntsc_equivalency[0xE] = midi.note_index("C4") - midi.note_index("G3")
+ntsc_equivalency[0xD] = midi.note_index("G3") - midi.note_index("E3")
+ntsc_equivalency[0xC] = midi.note_index("E3") - midi.note_index("C3")
+ntsc_equivalency[0xB] = midi.note_index("C3") - midi.note_index("A2")
+ntsc_equivalency[0xA] = midi.note_index("A2") - midi.note_index("G2")
+ntsc_equivalency[0x9] = midi.note_index("G2") - midi.note_index("F2")
+ntsc_equivalency[0x8] = midi.note_index("F2") - midi.note_index("D2")
+ntsc_equivalency[0x7] = midi.note_index("D2") - midi.note_index("C2")
+ntsc_equivalency[0x6] = midi.note_index("C2") - midi.note_index("B1")
+ntsc_equivalency[0x5] = midi.note_index("B1") - midi.note_index("A1")
+ntsc_equivalency[0x4] = midi.note_index("A1") - midi.note_index("G1")
+ntsc_equivalency[0x3] = midi.note_index("G1") - midi.note_index("F1")
+ntsc_equivalency[0x2] = midi.note_index("F1") - midi.note_index("E1")
+ntsc_equivalency[0x1] = midi.note_index("E1") - midi.note_index("D1")
+ntsc_equivalency[0x0] = midi.note_index("D1") - midi.note_index("C1")
+
+pal_safe_equivalency = [None] * 16
+pal_safe_equivalency[0xD] = midi.note_index("C4") - midi.note_index("E3")
+pal_safe_equivalency[0xC] = midi.note_index("E3") - midi.note_index("C3")
+pal_safe_equivalency[0xB] = midi.note_index("C3") - midi.note_index("A2")
+pal_safe_equivalency[0xA] = midi.note_index("A2") - midi.note_index("G2")
+pal_safe_equivalency[0x9] = midi.note_index("G2") - midi.note_index("F2")
+pal_safe_equivalency[0x8] = midi.note_index("F2") - midi.note_index("D2")
+pal_safe_equivalency[0x7] = midi.note_index("D2") - midi.note_index("C2")
+pal_safe_equivalency[0x6] = midi.note_index("C2") - midi.note_index("B1")
+pal_safe_equivalency[0x5] = midi.note_index("B1") - midi.note_index("A1")
+pal_safe_equivalency[0x3] = midi.note_index("A1") - midi.note_index("F1")
+pal_safe_equivalency[0x2] = midi.note_index("F1") - midi.note_index("E1")
+pal_safe_equivalency[0x1] = midi.note_index("E1") - midi.note_index("D1")
+pal_safe_equivalency[0x0] = midi.note_index("D1") - midi.note_index("C1")
 
 # in cents, compared to rate + $1
 repitching_error = [None] * 16

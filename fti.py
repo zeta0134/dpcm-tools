@@ -49,7 +49,7 @@ def write_sample_attributes(file, note_index, sample_index, dpcm_pitch, looping=
 
 def midi_to_note_index(midi_index):
   note_index = midi_index - 12
-  assert(note_index > 0 and note_index < 127)
+  assert(note_index >= 0 and note_index < 127)
   return note_index
 
 def write_sample_data(file, name, raw_data):
@@ -76,20 +76,21 @@ def note_by_index(note_mappings, index):
       return note_mapping
   return None
 
-def fill_lower_samples(note_mappings, quiet=True):
+def fill_lower_samples(note_mappings, quiet=True, equivalency_table=dpcm.ntsc_equivalency):
   for midi_index in range(12, 127, 1):
     note_mapping = note_by_index(note_mappings, midi_index)
     if note_mapping:
       target_midi_index = midi_index
       for dpcm_pitch in range(note_mapping["pitch"], 0x0, -1):
-        target_midi_index = target_midi_index - dpcm.equivalency[dpcm_pitch - 1]
-        if target_midi_index > 12:
-          # check to see if this note mapping already exists
-          target_note_mapping = note_by_index(note_mappings, target_midi_index)
-          if target_note_mapping == None:
-            # create a new note mapping, with the lower pitch
-            if not quiet:
-              print("Will map ", midi.note_name(midi_index), " with dpcm rate ", note_mapping["pitch"], " to lower note ", midi.note_name(target_midi_index), " with dpcm rate ", dpcm_pitch - 1)
-            target_note_mapping = {"midi_index": target_midi_index, "sample_index": note_mapping["sample_index"], "pitch": dpcm_pitch - 1, "looping": note_mapping["looping"], "delta": note_mapping["delta"]}
-            note_mappings.append(target_note_mapping)
+        if equivalency_table[dpcm_pitch - 1] != None:
+          target_midi_index = target_midi_index - equivalency_table[dpcm_pitch - 1]
+          if target_midi_index > 12:
+            # check to see if this note mapping already exists
+            target_note_mapping = note_by_index(note_mappings, target_midi_index)
+            if target_note_mapping == None:
+              # create a new note mapping, with the lower pitch
+              if not quiet:
+                print("Will map ", midi.note_name(midi_index), " with dpcm rate ", note_mapping["pitch"], " to lower note ", midi.note_name(target_midi_index), " with dpcm rate ", dpcm_pitch - 1)
+              target_note_mapping = {"midi_index": target_midi_index, "sample_index": note_mapping["sample_index"], "pitch": dpcm_pitch - 1, "looping": note_mapping["looping"], "delta": note_mapping["delta"]}
+              note_mappings.append(target_note_mapping)
   return note_mappings

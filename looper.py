@@ -95,7 +95,7 @@ def generate_samples(waveform_generator, note_list, volume=1.0, use_safe_amplitu
         if use_safe_amplitude:
             target_amplitude = dpcm.safe_amplitude(tuning["effective_frequency"], playback_rate) * volume
         pcm = generate_pcm(tuning, waveform_generator, playback_rate, target_amplitude, target_bias)
-        if waveform_generator == waveform.artificial_ramp:
+        if waveform_generator in [waveform.artificial_ramp, waveform.floored_artificial_ramp, waveform.ceilinged_artificial_ramp]:
             dpcm_data = dpcm.to_dpcm(pcm, starting_level=0)
         else:
             dpcm_data = dpcm.to_dpcm(pcm)
@@ -144,6 +144,8 @@ def main():
         "sawtooth": waveform.sawtooth, 
         "wave": waveform.wave_file, 
         "artificial_ramp": waveform.artificial_ramp,
+        "floored_artificial_ramp": waveform.floored_artificial_ramp,
+        "ceilinged_artificial_ramp": waveform.ceilinged_artificial_ramp,
     }
     parser = argparse.ArgumentParser(
         description="Automatically generate looping DPCM samples", 
@@ -171,8 +173,9 @@ def main():
     instrument_group.add_argument("-d", "--delta", help="Set the delta counter when playback begins", type=int, default=-1)
     instrument_group.add_argument("--repitch", dest="repitch", help="Fill out an instrument's lower range with repitched samples (default: True)", action='store_true')
     instrument_group.add_argument("--no-repitch", dest="repitch", help="Do not fill out the instrument's lower range", action='store_false')
+    instrument_group.add_argument("--pal-safe-repitch", dest="palsafe", help="Avoid pitches $4 and $E when repitching (default False)", action='store_true')
     instrument_group.add_argument("--fullname", help="The full name of this instrument, show in FamiTracker's UI")
-    instrument_group.set_defaults(repitch=True, safe_volume=True)
+    instrument_group.set_defaults(repitch=True, safe_volume=True, palsafe=False)
 
     args = parser.parse_args()
 
@@ -204,8 +207,11 @@ def main():
         instrument_filename = args.instrument
         (nicename, ext) = os.path.splitext(os.path.basename(instrument_filename))
         full_instrument_name = args.fullname or "DPCM {}".format(nicename)
+        equivalency_table = dpcm.ntsc_equivalency
+        if args.palsafe == True:
+            equivalency_table = dpcm.pal_safe_equivalency
 
-        note_mappings = fti.fill_lower_samples(note_mappings)
+        note_mappings = fti.fill_lower_samples(note_mappings, equivalency_table=equivalency_table)
 
         output = io.open(instrument_filename, "wb")
         fti.write_dpcm_instrument(output, full_instrument_name, note_mappings, sample_table)

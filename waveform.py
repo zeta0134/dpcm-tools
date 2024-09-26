@@ -28,6 +28,21 @@ def artificial_ramp(dt):
         return 2.0
     return -2.0
 
+# same deal, but generates an uneven triangle that leans towards 0, which is
+# useful in many sitautions to control the mix
+def floored_artificial_ramp(dt):
+    dt = dt % 1.0
+    if dt <= 0.45:
+        return 2.0
+    return -2.0
+
+# again same deal, but generates an uneven triangle that leans towards $7F
+def ceilinged_artificial_ramp(dt):
+    dt = dt % 1.0
+    if dt <= 0.55:
+        return 2.0
+    return -2.0
+
 def sawtooth(dt):
     return (dt + 0.5) % 1.0
 
